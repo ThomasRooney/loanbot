@@ -76,7 +76,7 @@ addTransaction = (from, to, amount, description, callback) ->
     [from,
     to,
     amount,
-    STATE_PENDING,
+    STATE_PENDING_TO,
     description], () -> callback(@lastID));
 
 confirmTransaction = (person, id, callback) ->
@@ -87,6 +87,15 @@ confirmTransaction = (person, id, callback) ->
     to = "NOP"
     amount=100
     callback(err == null, from, to, amount))
+
+getTotals = (callback) ->
+  # db.all("SELECT * FROM transactions WHERE state=#{STATE_CONFIRMED}", (err, rows) ->
+  db.all("select [from], [to], sum(amount) as total from transactions group by [from], [to] order by 1,2", (err, rows) ->
+    if (err)
+      console.log(err)
+
+    callback(rows)
+  )
 
 transactions = {
   "@charlie": [0: {
@@ -166,6 +175,74 @@ module.exports = (robot) ->
           "  #{personA} can confirm with:\n" +
           "    `@loanbot: confirm #{transID}`"
         res.send(response))
+
+
+  robot.hear /all totals/i, (res) ->
+    getTotals((rows) ->
+      totals = {}
+      for id, row of rows
+        totals[row.from] = (totals[row.from] || 0) - row.total
+        totals[row.to] = (totals[row.to] || 0) + row.total
+
+      minimize(totals, res)
+    )
+
+
+  findMin = (totals) ->
+    min = ''
+    for key, value of totals
+      if value < (totals[min] || 0)
+        min = key
+
+    return min
+
+  findMax = (totals) ->
+    max = ''
+    for key, value of totals
+      if value > (totals[max] || 0)
+        max = key
+    return max
+
+  minimizeOne = (totals, transactions) ->
+    maxDebit = findMin(totals)
+    maxCredit = findMax(totals)
+
+    if !maxDebit || !maxCredit
+      return true
+
+    minAmt = Math.min(Math.abs(totals[maxDebit]), Math.abs(totals[maxCredit]))
+
+    totals[maxDebit] += minAmt;
+    totals[maxCredit] -= minAmt;
+
+    transactions.push({
+      from: maxCredit,
+      to: maxDebit,
+      amount: minAmt
+    })
+
+    if totals[maxDebit] == 0
+      delete totals[maxDebit]
+
+    if totals[maxCredit] == 0
+      delete totals[maxCredit]
+
+    return false
+
+  minimize = (totals, res) ->
+    numTransactions = 0
+    transactions = []
+    while (numTransactions += 1) < 10000
+      if minimizeOne(totals, transactions)
+        break
+
+    response = "Minimized totals:\n"
+
+    for i, transaction of transactions
+      response += "#{transaction.from} owes #{transaction.to} #{transaction.amount}\n"
+
+    res.send(response)
+
 
   #
   # robot.respond /resolve\s+(@[^\s:]+)/i (res) ->
