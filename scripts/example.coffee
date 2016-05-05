@@ -103,9 +103,11 @@ getTotals = (callback) ->
   )
 
 getTransactions = (user1, user2, pending, callback) ->
-  query = "SELECT RowId, * FROM transactions WHERE ([from] = '#{user1}' OR [to] = '#{user1}')"
+  query = "SELECT RowId, * FROM transactions"
+  if (user1)
+    query += " WHERE ([from] = '#{user1}' OR [to] = '#{user1}')"
   if user2
-    query += " AND (from = '#{user2}' OR to = '#{user2})'"
+    query += " AND ([from] = '#{user2}' OR [to] = '#{user2}')"
 
   if pending
     query += " AND (state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})"
@@ -238,10 +240,35 @@ module.exports = (robot) ->
 
 
   # Transactions
-  robot.hear /transactions/i, (res) ->
+  robot.hear /^s*transactions$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, null, (rows) ->
       response = "Transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+
+      res.send(response)
+    )
+
+  # Transactions Person
+  robot.hear /^\s*transactions\s+(@[^\s:]+):?/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+    console.log(personA, personB);
+    getTransactions(personA, personB, null, (rows) ->
+      response = "Transactions with #{personA}:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+
+      res.send(response)
+    )
+
+  # All Transactions
+  robot.hear /all transactions$/i, (res) ->
+    getTransactions(null, null, null, (rows) ->
+      response = "All transactions:\n"
       for id, row of rows
         console.log(id, row)
         response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
