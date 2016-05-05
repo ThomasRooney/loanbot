@@ -44,6 +44,8 @@ loansTable = {
 # <DATETIME>: you gave @Bob 100 (pending)
 # <DATETIME>: @charlie gave you 200
 
+
+
 # Andy: @loanbot totals @charlie
 # > You owe Bob 300
 
@@ -69,6 +71,16 @@ STATE_PENDING_FROM = 0
 STATE_PENDING_TO = 1
 STATE_CONFIRMED = 2
 STATE_DENIED = 3
+
+stateToDescription = (state, from, to) ->
+  if state == STATE_PENDING_FROM
+    return "(pending confirmation from #{from})"
+  if state == STATE_PENDING_TO
+    return "(pending confirmation from #{to})"
+  if state == STATE_CONFIRMED
+    return ""
+  if state == STATE_DENIED
+    return "(denied)"
 
 addTransaction = (from, to, pendingState, amount, description, callback) ->
   db.run("INSERT INTO transactions values \
@@ -259,7 +271,7 @@ module.exports = (robot) ->
       response = "Pending transactions:\n"
       for id, row of rows
         console.log(id, row)
-        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
 
       res.send(response)
     )
@@ -273,7 +285,7 @@ module.exports = (robot) ->
       response = "Pending transactions with #{personA}:\n"
       for id, row of rows
         console.log(id, row)
-        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
 
       res.send(response)
     )
@@ -284,7 +296,7 @@ module.exports = (robot) ->
       response = "All pending transactions:\n"
       for id, row of rows
         console.log(id, row)
-        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
 
       res.send(response)
     )
@@ -297,7 +309,7 @@ module.exports = (robot) ->
       response = "Transactions:\n"
       for id, row of rows
         console.log(id, row)
-        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
 
       res.send(response)
     )
@@ -311,7 +323,7 @@ module.exports = (robot) ->
       response = "Transactions with #{personA}:\n"
       for id, row of rows
         console.log(id, row)
-        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
 
       res.send(response)
     )
@@ -322,7 +334,7 @@ module.exports = (robot) ->
       response = "All transactions:\n"
       for id, row of rows
         console.log(id, row)
-        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
 
       res.send(response)
     )
