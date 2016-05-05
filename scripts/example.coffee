@@ -93,6 +93,14 @@ setState = (state, person, id, callback) ->
     else
       callback(false))
 
+getTotalsForPerson = (person, callback) ->
+  db.all("select [from], [to], sum(amount) as total from transactions WHERE state=#{STATE_CONFIRMED} AND ([from] = ? OR [to] = ?) group by [from], [to] order by 1,2", [person, person], (err, rows) ->
+    if (err)
+      console.log(err)
+
+    callback(rows)
+  )
+
 getTotals = (callback) ->
   # db.all("SELECT * FROM transactions WHERE state=#{STATE_CONFIRMED}", (err, rows) ->
   db.all("select [from], [to], sum(amount) as total from transactions WHERE state=#{STATE_CONFIRMED} group by [from], [to] order by 1,2", (err, rows) ->
@@ -288,6 +296,15 @@ module.exports = (robot) ->
       minimize(totals, res)
     )
 
+  robot.hear /totals/i, (res) ->
+    getTotalsForPerson("@" + res.message.user.name, (rows) ->
+      totals = {}
+      for id, row of rows
+        totals[row.from] = (totals[row.from] || 0) - row.total
+        totals[row.to] = (totals[row.to] || 0) + row.total
+
+      minimize(totals, res)
+    )
 
   findMin = (totals) ->
     min = ''

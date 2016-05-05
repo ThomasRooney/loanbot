@@ -25,12 +25,6 @@ db.serialize(function() {
   // db.run(index2);
   // db.run(index3);
   // db.run("INSERT INTO transactions values ('@jay', '@jon', 100, datetime('now'), 0, 'services rendered')");
-  db.run("INSERT INTO transactions values (?, ?, ?, datetime('now'), ?, ?)",
-    ['@jay',
-    '@jon',
-    100,
-    0,
-    'services rendered'], function(){console.log(this.lastID, this.changes)});
 });
 
 db.close();
