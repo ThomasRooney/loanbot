@@ -95,7 +95,7 @@ setState = (state, person, id, callback) ->
 
 getTotals = (callback) ->
   # db.all("SELECT * FROM transactions WHERE state=#{STATE_CONFIRMED}", (err, rows) ->
-  db.all("select [from], [to], sum(amount) as total from transactions group by [from], [to] order by 1,2", (err, rows) ->
+  db.all("select [from], [to], sum(amount) as total from transactions WHERE state=#{STATE_CONFIRMED} group by [from], [to] order by 1,2", (err, rows) ->
     if (err)
       console.log(err)
 
