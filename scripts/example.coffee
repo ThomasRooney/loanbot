@@ -79,14 +79,19 @@ addTransaction = (from, to, amount, description, callback) ->
     STATE_PENDING_TO,
     description], () -> callback(@lastID));
 
-confirmTransaction = (person, id, callback) ->
+setState = (state, person, id, callback) ->
   db.run("UPDATE transactions SET state = ? WHERE (RowId = ? AND state = ? AND [from] = ?) OR (RowId = ? AND state = ? AND [to] = ?)", [
-      STATE_CONFIRMED, id, STATE_PENDING_FROM, person, id, STATE_PENDING_TO, person,
+      state, id, STATE_PENDING_FROM, person, id, STATE_PENDING_TO, person,
   ], (err, data) ->
-    from = "NOP"
-    to = "NOP"
-    amount=100
-    callback(err == null, from, to, amount))
+    if err == null
+      db.get("SELECT [from], [to], amount FROM transactions WHERE RowId = ? AND state = ? ", [id, state], (err, row) ->
+        if err == null and row
+          callback(true, row.from, row.to, row.amount)
+        else
+          callback(false)
+      )
+    else
+      callback(false))
 
 getTotals = (callback) ->
   # db.all("SELECT * FROM transactions WHERE state=#{STATE_CONFIRMED}", (err, rows) ->
@@ -143,18 +148,28 @@ module.exports = (robot) ->
   robot.hear /confirm\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
-    confirmTransaction(person, id, (success, from, to, amount) ->
+    setState(STATE_CONFIRMED, person, id, (success, from, to, amount) ->
       if success
-        res.send("Successfully confirmed transaction #{id} (#{from} gave #{to} #{amount})")
+        res.send("Successfully confirmed transaction #{id} (#{from} gave #{amount} to #{to})")
       else
-        res.send("Could not successfully confirm transaction")
+        res.send("Could not successfully confirm transaction #{id}")
     )
 
-  robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)/i, (res) ->
+  robot.hear /deny\s+(\d+)/i, (res) ->
+    person = "@" + res.message.user.name
+    id = Number(res.match[1])
+    setState(STATE_DENIED, person, id, (success, from, to, amount) ->
+      if success
+        res.send("Successfully denied transaction #{id} (#{from} gave #{amount} to #{to})")
+      else
+        res.send("Could not successfully deny transaction #{id}")
+    )
+
+  robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)\s+(.+)/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
-    description = "NOP"
+    description = res.match[3]
     # newTotal = gave(personA, personB, amount)
     addTransaction(personA, personB, amount, description,
       (transID) ->
@@ -163,11 +178,38 @@ module.exports = (robot) ->
           "    `@loanbot: confirm #{transID}`"
         res.send(response))
 
-  robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)/i, (res) ->
+  robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)$/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+    amount = Number(res.match[2])
+    description = ""
+    # newTotal = gave(personA, personB, amount)
+    addTransaction(personA, personB, amount, description,
+      (transID) ->
+        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{personB} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+        res.send(response))
+
+
+  robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)\s+(.+)/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
-    description = "NOP"
+    description = res.match[3]
+    # newTotal = gave(personA, personB, amount)
+    addTransaction(personA, personB, amount, description,
+      (transID) ->
+        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{personA} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+        res.send(response))
+
+  robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)$/i, (res) ->
+    personB = "@" + res.message.user.name
+    personA = res.match[1].toLowerCase()
+    amount = Number(res.match[2])
+    description = ""
     # newTotal = gave(personA, personB, amount)
     addTransaction(personA, personB, amount, description,
       (transID) ->
