@@ -11,11 +11,6 @@ db = new sqlite3.Database('db.sqlite');
 #
 #   These are from the scripting documentation: https://github.com/github/hubot/blob/master/docs/scripting.md
 
-loansTable = {
-  # "PersonA PersonB" ==> PersonA owes personB currency => amount. If amount is negative it implies opposite direction
-  "@bob @charlie" : 100,
-}
-
 # gave @andy 1000000
 # ID == enumerated number
 # @loanbot @andy, confirm @bob gave you 100000 with @confirm <ID>
@@ -105,14 +100,14 @@ setState = (state, person, id, callback) ->
     else
       callback(false))
 
-getTotals = (user1, user2, callback) ->
+getTotals = (person1, person2, callback) ->
   query = "SELECT [from], [to], sum(amount) as total FROM transactions WHERE state=#{STATE_CONFIRMED}"
 
-  if user1
-    query += " AND ([from] = '#{user1}' OR [to] = '#{user1}')"
+  if person1
+    query += " AND ([from] = '#{person1}' OR [to] = '#{person1}')"
 
-  if user2
-    query += " AND ([from] = '#{user2}' OR [to] = '#{user2}')"
+  if person2
+    query += " AND ([from] = '#{person2}' OR [to] = '#{person2}')"
 
   query += " GROUP BY [from], [to] ORDER BY 1,2"
 
@@ -125,14 +120,14 @@ getTotals = (user1, user2, callback) ->
     callback(rows)
   )
 
-getTransactions = (user1, user2, pending, callback) ->
+getTransactions = (person1, person2, pending, callback) ->
   query = "SELECT RowId, * FROM transactions"
   wheres = []
 
-  if (user1)
-    wheres.push("([from] = '#{user1}' OR [to] = '#{user1}')")
-  if user2
-    wheres.push("([from] = '#{user2}' OR [to] = '#{user2}')")
+  if (person1)
+    wheres.push("([from] = '#{person1}' OR [to] = '#{person1}')")
+  if person2
+    wheres.push("([from] = '#{person2}' OR [to] = '#{person2}')")
   if pending
     wheres.push("(state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})")
 
@@ -151,19 +146,7 @@ getTransactions = (user1, user2, pending, callback) ->
 
 module.exports = (robot) ->
 
-  # robot.hear /badger/i, (res) ->
-  #   res.send "Badgers? BADGERS? WE DON'T NEED NO STINKIN BADGERS"
-  #
-  # robot.hear /(@[^\s:]+):?\s+gave\s+(@[^\s:]+):?\s+(\d+)/i, (res) ->
-  #   personA = res.match[1].toLowerCase()
-  #   personB = res.match[2].toLowerCase()
-  #   amount = Number(res.match[3])
-  #   newTotal = gave(personA, personB, amount)
-  #   if newTotal > 0
-  #     res.send("#{personA} now owes #{personB} #{newTotal}")
-  #   else
-  #     res.send("#{personB} now owes #{personA} #{-newTotal}")
-
+  # confirm #
   robot.hear /confirm\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
@@ -174,6 +157,7 @@ module.exports = (robot) ->
         res.send("Could not successfully confirm transaction #{id}")
     )
 
+  # deny #
   robot.hear /deny\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
@@ -184,12 +168,13 @@ module.exports = (robot) ->
         res.send("Could not successfully deny transaction #{id}")
     )
 
+  # gave @person amount description
   robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)\s+(.+)/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = res.match[3]
-    # newTotal = gave(personA, personB, amount)
+
     addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
@@ -197,12 +182,13 @@ module.exports = (robot) ->
           "    `@loanbot: confirm #{transID}`"
         res.send(response))
 
+  # gave @person amount
   robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)$/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = ""
-    # newTotal = gave(personA, personB, amount)
+
     addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
@@ -210,13 +196,13 @@ module.exports = (robot) ->
           "    `@loanbot: confirm #{transID}`"
         res.send(response))
 
-
+  # person gave amount description
   robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)\s+(.+)/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = res.match[3]
-    # newTotal = gave(personA, personB, amount)
+
     addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
@@ -224,12 +210,13 @@ module.exports = (robot) ->
           "    `@loanbot: confirm #{transID}`"
         res.send(response))
 
+  # person gave amount
   robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)$/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = ""
-    # newTotal = gave(personA, personB, amount)
+
     addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
@@ -238,8 +225,7 @@ module.exports = (robot) ->
         res.send(response))
 
 
-
-  # Pending
+  # pending
   robot.hear /^\s*pending$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, true, (rows) ->
@@ -251,7 +237,7 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # Pending Person
+  # pending @person
   robot.hear /^\s*pending\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
@@ -265,7 +251,7 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # All Pending
+  # all pending
   robot.hear /^\s*all pending$/i, (res) ->
     getTransactions(null, null, true, (rows) ->
       response = "All pending transactions:\n"
@@ -277,7 +263,7 @@ module.exports = (robot) ->
     )
 
 
-  # Transactions
+  # transactions
   robot.hear /^\s*transactions$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, null, (rows) ->
@@ -289,7 +275,7 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # Transactions Person
+  # transactions @person
   robot.hear /^\s*transactions\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
@@ -303,7 +289,7 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # All Transactions
+  # all transactions
   robot.hear /^\s*all transactions$/i, (res) ->
     getTransactions(null, null, null, (rows) ->
       response = "All transactions:\n"
@@ -315,7 +301,7 @@ module.exports = (robot) ->
     )
 
 
-  # Totals
+  # totals
   robot.hear /^\s*totals$/i, (res) ->
     personA = "@" + res.message.user.name
 
@@ -328,7 +314,7 @@ module.exports = (robot) ->
       minimize(totals, res)
     )
 
-  # Totals Person
+  # totals person
   robot.hear /^\s*totals\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
@@ -342,7 +328,7 @@ module.exports = (robot) ->
       minimize(totals, res)
     )
 
-  # All Totals
+  # all totals
   robot.hear /^\s*all totals$/i, (res) ->
     getTotals(null, null, (rows) ->
       totals = {}
@@ -353,6 +339,7 @@ module.exports = (robot) ->
       minimize(totals, res)
     )
 
+  # Minifying code
   findMin = (totals) ->
     min = ''
     for key, value of totals
