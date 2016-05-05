@@ -265,7 +265,7 @@ module.exports = (robot) ->
 
 
   # Pending
-  robot.hear /^s*pending$/i, (res) ->
+  robot.hear /^\s*pending$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, true, (rows) ->
       response = "Pending transactions:\n"
@@ -351,7 +351,7 @@ module.exports = (robot) ->
       minimize(totals, res)
     )
 
-  robot.hear /totals/i, (res) ->
+  robot.hear /^\s*totals/i, (res) ->
     getTotalsForPerson("@" + res.message.user.name, (rows) ->
       totals = {}
       for id, row of rows
