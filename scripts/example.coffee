@@ -79,6 +79,15 @@ addTransaction = (from, to, amount, description, callback) ->
     STATE_PENDING,
     description], () -> callback(@lastID));
 
+confirmTransaction = (person, id, callback) ->
+  db.run("UPDATE transactions SET state = ? WHERE (RowId = ? AND state = ? AND [from] = ?) OR (RowId = ? AND state = ? AND [to] = ?)", [
+      STATE_CONFIRMED, id, STATE_PENDING_FROM, person, id, STATE_PENDING_TO, person,
+  ], (err, data) ->
+    from = "NOP"
+    to = "NOP"
+    amount=100
+    callback(err == null, from, to, amount))
+
 transactions = {
   "@charlie": [0: {
       counterparty: "@andy",
@@ -121,6 +130,16 @@ module.exports = (robot) ->
   #     res.send("#{personA} now owes #{personB} #{newTotal}")
   #   else
   #     res.send("#{personB} now owes #{personA} #{-newTotal}")
+
+  robot.hear /confirm\s+(\d+)/i, (res) ->
+    person = "@" + res.message.user.name
+    id = Number(res.match[1])
+    confirmTransaction(person, id, (success, from, to, amount) ->
+      if success
+        res.send("Successfully confirmed transaction #{id} (#{from} gave #{to} #{amount})")
+      else
+        res.send("Could not successfully confirm transaction")
+    )
 
   robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)/i, (res) ->
     personA = "@" + res.message.user.name
