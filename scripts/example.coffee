@@ -112,13 +112,18 @@ getTotals = (callback) ->
 
 getTransactions = (user1, user2, pending, callback) ->
   query = "SELECT RowId, * FROM transactions"
-  if (user1)
-    query += " WHERE ([from] = '#{user1}' OR [to] = '#{user1}')"
-  if user2
-    query += " AND ([from] = '#{user2}' OR [to] = '#{user2}')"
+  wheres = []
 
+  if (user1)
+    wheres.push("([from] = '#{user1}' OR [to] = '#{user1}')")
+  if user2
+    wheres.push("([from] = '#{user2}' OR [to] = '#{user2}')")
   if pending
-    query += " AND (state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})"
+    wheres.push("(state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})")
+
+  if (wheres.length > 0)
+    query += " WHERE "
+    query += wheres.join(" AND ")
 
   console.log(query)
 
@@ -245,6 +250,44 @@ module.exports = (robot) ->
           "    `@loanbot: confirm #{transID}`"
         res.send(response))
 
+
+
+  # Pending
+  robot.hear /^s*pending$/i, (res) ->
+    personA = "@" + res.message.user.name
+    getTransactions(personA, null, true, (rows) ->
+      response = "Pending transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+
+      res.send(response)
+    )
+
+  # Pending Person
+  robot.hear /^\s*pending\s+(@[^\s:]+):?/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+    console.log(personA, personB);
+    getTransactions(personA, personB, true, (rows) ->
+      response = "Pending transactions with #{personA}:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+
+      res.send(response)
+    )
+
+  # All Pending
+  robot.hear /all pending$/i, (res) ->
+    getTransactions(null, null, true, (rows) ->
+      response = "All pending transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description}\n"
+
+      res.send(response)
+    )
 
 
   # Transactions
