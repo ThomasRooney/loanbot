@@ -105,17 +105,20 @@ setState = (state, person, id, callback) ->
     else
       callback(false))
 
-getTotalsForPerson = (person, callback) ->
-  db.all("select [from], [to], sum(amount) as total from transactions WHERE state=#{STATE_CONFIRMED} AND ([from] = ? OR [to] = ?) group by [from], [to] order by 1,2", [person, person], (err, rows) ->
-    if (err)
-      console.log(err)
+getTotals = (user1, user2, callback) ->
+  query = "SELECT [from], [to], sum(amount) as total FROM transactions WHERE state=#{STATE_CONFIRMED}"
 
-    callback(rows)
-  )
+  if user1
+    query += " AND ([from] = '#{user1}' OR [to] = '#{user1}')"
 
-getTotals = (callback) ->
-  # db.all("SELECT * FROM transactions WHERE state=#{STATE_CONFIRMED}", (err, rows) ->
-  db.all("select [from], [to], sum(amount) as total from transactions WHERE state=#{STATE_CONFIRMED} group by [from], [to] order by 1,2", (err, rows) ->
+  if user2
+    query += " AND ([from] = '#{user2}' OR [to] = '#{user2}')"
+
+  query += " GROUP BY [from], [to] ORDER BY 1,2"
+
+  console.log(query)
+
+  db.all(query, (err, rows) ->
     if (err)
       console.log(err)
 
@@ -145,34 +148,6 @@ getTransactions = (user1, user2, pending, callback) ->
 
     callback(rows)
   )
-
-transactions = {
-  "@charlie": [0: {
-      counterparty: "@andy",
-      amount: -100,
-      confirmed: true
-    }]
-  "@andy": [0: {
-      counterparty: "@charlie",
-      amount: 100,
-      confirmed: false
-    }]
-}
-
-toKey = (name1, name2) ->
-  if name1 < name2 then name1 + " " + name2 else name2 + " " + name1
-
-# E.g. gave("@bob", "@charlie", 100)
-# gave = (from, to, amount, description) ->
-  # loanTableKey = toKey(from, to)
-  # if from > to
-  #   amount *= -1
-  # loansTable[loanTableKey] = (loansTable[loanTableKey] + amount) || amount
-  # if from > to
-  #   return loansTable[loanTableKey]
-  # else
-  #   return -loansTable[loanTableKey]
-
 
 module.exports = (robot) ->
 
@@ -341,8 +316,10 @@ module.exports = (robot) ->
 
 
   # Totals
-  robot.hear /all totals/i, (res) ->
-    getTotals((rows) ->
+  robot.hear /^\s*totals$/i, (res) ->
+    personA = "@" + res.message.user.name
+
+    getTotals(personA, null, (rows) ->
       totals = {}
       for id, row of rows
         totals[row.from] = (totals[row.from] || 0) - row.total
@@ -351,8 +328,23 @@ module.exports = (robot) ->
       minimize(totals, res)
     )
 
-  robot.hear /^\s*totals/i, (res) ->
-    getTotalsForPerson("@" + res.message.user.name, (rows) ->
+  # Totals Person
+  robot.hear /^\s*totals\s+(@[^\s:]+):?/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+
+    getTotals(personA, personB, (rows) ->
+      totals = {}
+      for id, row of rows
+        totals[row.from] = (totals[row.from] || 0) - row.total
+        totals[row.to] = (totals[row.to] || 0) + row.total
+
+      minimize(totals, res)
+    )
+
+  # All Totals
+  robot.hear /^\s*all totals$/i, (res) ->
+    getTotals(null, null, (rows) ->
       totals = {}
       for id, row of rows
         totals[row.from] = (totals[row.from] || 0) - row.total
