@@ -70,13 +70,13 @@ STATE_PENDING_TO = 1
 STATE_CONFIRMED = 2
 STATE_DENIED = 3
 
-addTransaction = (from, to, amount, description, callback) ->
+addTransaction = (from, to, pendingState, amount, description, callback) ->
   db.run("INSERT INTO transactions values \
     (?, ?, ?, datetime('now'), ?, ?)",
     [from,
     to,
     amount,
-    STATE_PENDING_TO,
+    pendingState,
     description], () -> callback(@lastID));
 
 setState = (state, person, id, callback) ->
@@ -177,7 +177,7 @@ module.exports = (robot) ->
     id = Number(res.match[1])
     setState(STATE_CONFIRMED, person, id, (success, from, to, amount) ->
       if success
-        res.send("Successfully confirmed transaction #{id} (#{from} gave #{amount} to #{to})")
+        res.send("Transaction confirmed #{id} (#{from} gave #{amount} to #{to})")
       else
         res.send("Could not successfully confirm transaction #{id}")
     )
@@ -198,7 +198,7 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = res.match[3]
     # newTotal = gave(personA, personB, amount)
-    addTransaction(personA, personB, amount, description,
+    addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
           "  #{personB} can confirm with:\n" +
@@ -211,7 +211,7 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = ""
     # newTotal = gave(personA, personB, amount)
-    addTransaction(personA, personB, amount, description,
+    addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
           "  #{personB} can confirm with:\n" +
@@ -225,7 +225,7 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = res.match[3]
     # newTotal = gave(personA, personB, amount)
-    addTransaction(personA, personB, amount, description,
+    addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
           "  #{personA} can confirm with:\n" +
@@ -238,7 +238,7 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = ""
     # newTotal = gave(personA, personB, amount)
-    addTransaction(personA, personB, amount, description,
+    addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
       (transID) ->
         response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
           "  #{personA} can confirm with:\n" +
