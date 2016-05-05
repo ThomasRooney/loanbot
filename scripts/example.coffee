@@ -1,3 +1,6 @@
+sqlite3 = require('sqlite3').verbose();
+db = new sqlite3.Database('db.sqlite');
+
 # Description:
 #   Example scripts for you to examine and try out.
 #
@@ -13,35 +16,141 @@ loansTable = {
   "@bob @charlie" : 100,
 }
 
+# gave @andy 1000000
+# ID == enumerated number
+# @loanbot @andy, confirm @bob gave you 100000 with @confirm <ID>
+
+# commands
+
+
+# (Andy Says:) @loanbot pending
+# Waiting on your confirmation for these transactions:
+# 0: @Bob gave you 100 (confirm 0)
+# 1: @Charlie gave you 200 (confirm 1)
+# 2: you gave @Bob 300 (confirm 2)
+# (@confirm)
+
+# (Andy Says:) @loanbot transactions
+# Your transactions:
+# <DATETIME>: @Bob gave you 100 "For coffee"
+# <DATETIME>: @Charlie gave you 200
+# <DATETIME>: you gave @Charlie 200 "For beer" (pending)
+# <DATETIME>: you gave @Bob 100 (pending)
+# <DATETIME>: @charlie gave you 200
+
+# (Andy Says:) @loanbot transactions @Bob
+# Your transactions:
+# <DATETIME>: @Bob gave you 100 "For coffee"
+# <DATETIME>: you gave @Bob 100 (pending)
+# <DATETIME>: @charlie gave you 200
+
+# Andy: @loanbot totals @charlie
+# > You owe Bob 300
+
+# Andy: @loanbot totals
+# > You owe Bob 300
+# > Charlie owes you 100
+
+# Andy: @loanbot all totals
+# > You owe Bob 300
+# > Charlie owes you 100
+# > Charlie owes Bob 100
+
+# @loanbot reconcile
+# > You owe Bob 100
+# > You owe Charlie 300
+
+# @loanbot confirm
+
+# @loanbot confirm 3
+
+# state of a transaction is
+STATE_PENDING_FROM = 0
+STATE_PENDING_TO = 1
+STATE_CONFIRMED = 2
+STATE_DENIED = 3
+
+addTransaction = (from, to, amount, description, callback) ->
+  db.run("INSERT INTO transactions values \
+    (?, ?, ?, datetime('now'), ?, ?)",
+    [from,
+    to,
+    amount,
+    STATE_PENDING,
+    description], () -> callback(@lastID));
+
+transactions = {
+  "@charlie": [0: {
+      counterparty: "@andy",
+      amount: -100,
+      confirmed: true
+    }]
+  "@andy": [0: {
+      counterparty: "@charlie",
+      amount: 100,
+      confirmed: false
+    }]
+}
+
 toKey = (name1, name2) ->
   if name1 < name2 then name1 + " " + name2 else name2 + " " + name1
 
-# E.g. loan("@bob", "@charlie", 100)
-lent = (to, from, amount) ->
-  loanTableKey = toKey(from, to)
-  if from > to
-    amount *= -1
-  loansTable[loanTableKey] = (loansTable[loanTableKey] + amount) || amount
-  if from > to
-    return loansTable[loanTableKey]
-  else
-    return -loansTable[loanTableKey]
+# E.g. gave("@bob", "@charlie", 100)
+# gave = (from, to, amount, description) ->
+  # loanTableKey = toKey(from, to)
+  # if from > to
+  #   amount *= -1
+  # loansTable[loanTableKey] = (loansTable[loanTableKey] + amount) || amount
+  # if from > to
+  #   return loansTable[loanTableKey]
+  # else
+  #   return -loansTable[loanTableKey]
+
 
 module.exports = (robot) ->
 
   # robot.hear /badger/i, (res) ->
   #   res.send "Badgers? BADGERS? WE DON'T NEED NO STINKIN BADGERS"
   #
-  robot.hear /(@[^\s:]+):?\s+lent\s+(@[^\s:]+):?\s+(\d+)/i, (res) ->
+  # robot.hear /(@[^\s:]+):?\s+gave\s+(@[^\s:]+):?\s+(\d+)/i, (res) ->
+  #   personA = res.match[1].toLowerCase()
+  #   personB = res.match[2].toLowerCase()
+  #   amount = Number(res.match[3])
+  #   newTotal = gave(personA, personB, amount)
+  #   if newTotal > 0
+  #     res.send("#{personA} now owes #{personB} #{newTotal}")
+  #   else
+  #     res.send("#{personB} now owes #{personA} #{-newTotal}")
+
+  robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+    amount = Number(res.match[2])
+    description = "NOP"
+    # newTotal = gave(personA, personB, amount)
+    addTransaction(personA, personB, amount, description,
+      (transID) ->
+        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{personB} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+        res.send(response))
+
+  robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)/i, (res) ->
+    personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
-    personB = res.match[2].toLowerCase()
-    amount = Number(res.match[3])
-    newTotal = lent(personA, personB, amount)
-    if newTotal > 0
-      res.send("#{personA} now owes #{personB} #{newTotal}")
-    else
-      res.send("#{personB} now owes #{personA} #{-newTotal}")
+    amount = Number(res.match[2])
+    description = "NOP"
+    # newTotal = gave(personA, personB, amount)
+    addTransaction(personA, personB, amount, description,
+      (transID) ->
+        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{personA} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+        res.send(response))
+
   #
+  # robot.respond /resolve\s+(@[^\s:]+)/i (res) ->
+  #   res.send
   # robot.hear /I like pie/i, (res) ->
   #   res.emote "makes a freshly baked pie"
   #
