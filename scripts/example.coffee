@@ -266,7 +266,7 @@ module.exports = (robot) ->
     )
 
   # All Pending
-  robot.hear /all pending$/i, (res) ->
+  robot.hear /^\s*all pending$/i, (res) ->
     getTransactions(null, null, true, (rows) ->
       response = "All pending transactions:\n"
       for id, row of rows
@@ -278,7 +278,7 @@ module.exports = (robot) ->
 
 
   # Transactions
-  robot.hear /^s*transactions$/i, (res) ->
+  robot.hear /^\s*transactions$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, null, (rows) ->
       response = "Transactions:\n"
@@ -304,7 +304,7 @@ module.exports = (robot) ->
     )
 
   # All Transactions
-  robot.hear /all transactions$/i, (res) ->
+  robot.hear /^\s*all transactions$/i, (res) ->
     getTransactions(null, null, null, (rows) ->
       response = "All transactions:\n"
       for id, row of rows
