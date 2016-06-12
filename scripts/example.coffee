@@ -470,6 +470,26 @@ module.exports = (robot) ->
 
     res.send(response)
 
+  # all totals
+  robot.hear /^help$/i, (res) ->
+    res.send("Loanbot commands:\n" +
+             "*gave*: Add a transaction. Examples: \n" +
+             "           `gave @user 20 description`\n" +
+             "           `@user gave 20 description`\n\n" +
+             "*pending*: List transactions waiting for you to confirm\n" +
+             "*pending @user*: List your transactions with @user waiting for you to confirm\n" +
+             "*all pending*: List all transactions waiting to be confirmed\n\n" +
+             "*waiting*: List your transactions waiting for someone else to confirm\n" +
+             "*waiting @user*: List your transactions waiting for @user to confirm\n" +
+             "*all waiting*: List all transactions waiting to be confirmed\n\n" +
+             "*transactions*: List all your transactions\n" +
+             "*transactions @user*: List your transactions with @user\n" +
+             "*all transactions*: List all transactions\n\n" +
+             "*totals*: List total amounts owed by or to you\n" +
+             "*totals @user*: List total amount owed between you and @user\n" +
+             "*all totals*: List total amounts between everyone\n\n" +
+             ""
+    )
 
   #
   # robot.respond /resolve\s+(@[^\s:]+)/i (res) ->
