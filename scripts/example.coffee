@@ -174,9 +174,16 @@ handleTransactionAdded = (res, transID, personA, personB, amount, description) -
           "  #{target} can confirm with:\n" +
           "    `@loanbot: confirm #{transID}`"
   res.robot.messageRoom "lending", response
+
+
 module.exports = (robot) ->
+  addFn = (regex, fn) ->
+    robot.respond regex, fn
+    anchored = new RegExp("^" + regex.source)
+    robot.hear anchored, fn
+
   # confirm #
-  robot.hear /confirm\s+(\d+)/i, (res) ->
+  addFn /confirm\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
     setState(STATE_CONFIRMED, person, id, (success, from, to, amount) ->
@@ -187,7 +194,7 @@ module.exports = (robot) ->
     )
 
   # deny #
-  robot.hear /deny\s+(\d+)/i, (res) ->
+  addFn /deny\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
     setState(STATE_DENIED, person, id, (success, from, to, amount) ->
@@ -198,7 +205,7 @@ module.exports = (robot) ->
     )
 
   # gave @person amount description
-  robot.hear /^(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)\s+(?:for\s)?(.+)/i, (res) ->
+  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)\s+(?:for\s)?(.+)/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -208,7 +215,7 @@ module.exports = (robot) ->
 
 
   # gave @person amount
-  robot.hear /^(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)$/i, (res) ->
+  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)$/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -218,7 +225,7 @@ module.exports = (robot) ->
 
 
   # person gave amount description
-  robot.hear /^([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)\s+(?:for\s)?(.+)/i, (res) ->
+  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)\s+(?:for\s)?(.+)/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -228,7 +235,7 @@ module.exports = (robot) ->
 
 
   # person gave amount
-  robot.hear /^([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)$/i, (res) ->
+  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)$/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -238,7 +245,7 @@ module.exports = (robot) ->
 
 
   # pending
-  robot.hear /^\s*pending$/i, (res) ->
+  addFn /\s*pending$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, true, false, (rows) ->
       response = "Pending transactions:\n"
@@ -250,7 +257,7 @@ module.exports = (robot) ->
     )
 
   # pending @person
-  robot.hear /^\s*pending\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*pending\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     console.log(personA, personB);
@@ -264,7 +271,7 @@ module.exports = (robot) ->
     )
 
   # all pending -> Same as all waiting
-  robot.hear /^\s*all pending$/i, (res) ->
+  addFn /\s*all pending$/i, (res) ->
     getTransactions(null, null, true, true, (rows) ->
       response = "All pending transactions:\n"
       for id, row of rows
@@ -275,7 +282,7 @@ module.exports = (robot) ->
     )
 
   # waiting
-  robot.hear /^\s*waiting$/i, (res) ->
+  addFn /\s*waiting$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, false, true, (rows) ->
       response = "Waiting transactions:\n"
@@ -287,7 +294,7 @@ module.exports = (robot) ->
     )
 
   # waiting @person
-  robot.hear /^\s*waiting\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*waiting\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     getTransactions(personA, personB, false, true, (rows) ->
@@ -300,7 +307,7 @@ module.exports = (robot) ->
     )
 
   # all waiting -> Same as all pending
-  robot.hear /^\s*all waiting$/i, (res) ->
+  addFn /\s*all waiting$/i, (res) ->
     getTransactions(null, null, true, true, (rows) ->
       response = "All waiting transactions:\n"
       for id, row of rows
@@ -312,7 +319,7 @@ module.exports = (robot) ->
 
 
   # transactions
-  robot.hear /^\s*transactions$/i, (res) ->
+  addFn /\s*transactions$/i, (res) ->
     personA = "@" + res.message.user.name
     getTransactions(personA, null, null, false, (rows) ->
       response = "Transactions:\n"
@@ -324,7 +331,7 @@ module.exports = (robot) ->
     )
 
   # transactions @person
-  robot.hear /^\s*transactions\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*transactions\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     console.log(personA, personB);
@@ -338,7 +345,7 @@ module.exports = (robot) ->
     )
 
   # all transactions
-  robot.hear /^\s*all transactions$/i, (res) ->
+  addFn /\s*all transactions$/i, (res) ->
     getTransactions(null, null, null, false, (rows) ->
       response = "All transactions:\n"
       for id, row of rows
@@ -350,7 +357,7 @@ module.exports = (robot) ->
 
 
   # totals
-  robot.hear /^\s*totals$/i, (res) ->
+  addFn /\s*totals$/i, (res) ->
     personA = "@" + res.message.user.name
 
     getTotals(personA, null, (rows) ->
@@ -363,7 +370,7 @@ module.exports = (robot) ->
     )
 
   # totals person
-  robot.hear /^\s*totals\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*totals\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
 
@@ -377,7 +384,7 @@ module.exports = (robot) ->
     )
 
   # all totals
-  robot.hear /^\s*all totals$/i, (res) ->
+  addFn /\s*all totals$/i, (res) ->
     getTotals(null, null, (rows) ->
       totals = {}
       for id, row of rows
@@ -466,8 +473,7 @@ module.exports = (robot) ->
 
     res.send(response)
 
-  # all totals
-  robot.hear /^help$/i, (res) ->
+  printHelp = (res) ->
     res.send("Loanbot commands:\n" +
              "*gave*: Add a transaction. Examples: \n" +
              "           `gave @user 20 description`\n" +
@@ -486,6 +492,10 @@ module.exports = (robot) ->
              "*all totals*: List total amounts between everyone\n\n" +
              ""
     )
+
+  # all totals
+  addFn /help$/i, (res) ->
+    printHelp(res)
 
   #
   # robot.respond /resolve\s+(@[^\s:]+)/i (res) ->
