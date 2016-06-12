@@ -175,6 +175,9 @@ handleTransactionAdded = (res, transID, personA, personB, amount, description) -
           "    `@loanbot: confirm #{transID}`"
   res.robot.messageRoom "lending", response
 
+  if res.envelope.room != "lending"
+    res.send(response)
+
 
 module.exports = (robot) ->
   addFn = (regex, fn) ->
