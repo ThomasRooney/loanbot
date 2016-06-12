@@ -120,7 +120,7 @@ getTotals = (person1, person2, callback) ->
     callback(rows)
   )
 
-getTransactions = (person1, person2, pending, callback) ->
+getTransactions = (person1, person2, pending, waiting, callback) ->
   query = "SELECT RowId, * FROM transactions"
   wheres = []
 
@@ -129,7 +129,9 @@ getTransactions = (person1, person2, pending, callback) ->
   if person2
     wheres.push("([from] = '#{person2}' OR [to] = '#{person2}')")
   if pending
-    wheres.push("(state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})")
+    wheres.push("state = #{STATE_PENDING_FROM}")
+  if waiting
+    wheres.push("state = #{STATE_PENDING_TO}")
 
   if (wheres.length > 0)
     query += " WHERE "
@@ -228,7 +230,7 @@ module.exports = (robot) ->
   # pending
   robot.hear /^\s*pending$/i, (res) ->
     personA = "@" + res.message.user.name
-    getTransactions(personA, null, true, (rows) ->
+    getTransactions(personA, null, true, false, (rows) ->
       response = "Pending transactions:\n"
       for id, row of rows
         console.log(id, row)
@@ -242,7 +244,7 @@ module.exports = (robot) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     console.log(personA, personB);
-    getTransactions(personA, personB, true, (rows) ->
+    getTransactions(personA, personB, true, false, (rows) ->
       response = "Pending transactions with #{personA}:\n"
       for id, row of rows
         console.log(id, row)
@@ -253,8 +255,44 @@ module.exports = (robot) ->
 
   # all pending
   robot.hear /^\s*all pending$/i, (res) ->
-    getTransactions(null, null, true, (rows) ->
+    getTransactions(null, null, true, false, (rows) ->
       response = "All pending transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
+
+      res.send(response)
+    )
+
+  # waiting
+  robot.hear /^\s*waiting$/i, (res) ->
+    personA = "@" + res.message.user.name
+    getTransactions(personA, null, false, true, (rows) ->
+      response = "Waiting transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
+
+      res.send(response)
+    )
+
+  # waiting @person
+  robot.hear /^\s*waiting\s+(@[^\s:]+):?/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+    getTransactions(personA, personB, false, true, (rows) ->
+      response = "Waiting transactions with #{personA}:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
+
+      res.send(response)
+    )
+
+  # all waiting
+  robot.hear /^\s*all waiting$/i, (res) ->
+    getTransactions(null, null, false, true, (rows) ->
+      response = "All waiting transactions:\n"
       for id, row of rows
         console.log(id, row)
         response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
@@ -266,7 +304,7 @@ module.exports = (robot) ->
   # transactions
   robot.hear /^\s*transactions$/i, (res) ->
     personA = "@" + res.message.user.name
-    getTransactions(personA, null, null, (rows) ->
+    getTransactions(personA, null, null, false, (rows) ->
       response = "Transactions:\n"
       for id, row of rows
         console.log(id, row)
@@ -280,7 +318,7 @@ module.exports = (robot) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     console.log(personA, personB);
-    getTransactions(personA, personB, null, (rows) ->
+    getTransactions(personA, personB, null, false, (rows) ->
       response = "Transactions with #{personA}:\n"
       for id, row of rows
         console.log(id, row)
@@ -291,7 +329,7 @@ module.exports = (robot) ->
 
   # all transactions
   robot.hear /^\s*all transactions$/i, (res) ->
-    getTransactions(null, null, null, (rows) ->
+    getTransactions(null, null, null, false, (rows) ->
       response = "All transactions:\n"
       for id, row of rows
         console.log(id, row)
