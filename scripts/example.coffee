@@ -128,9 +128,12 @@ getTransactions = (person1, person2, pending, waiting, callback) ->
     wheres.push("([from] = '#{person1}' OR [to] = '#{person1}')")
   if person2
     wheres.push("([from] = '#{person2}' OR [to] = '#{person2}')")
-  if pending
+
+  if pending and waiting
+    wheres.push("(state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})")
+  else if pending
     wheres.push("state = #{STATE_PENDING_FROM}")
-  if waiting
+  else if waiting
     wheres.push("state = #{STATE_PENDING_TO}")
 
   if (wheres.length > 0)
@@ -268,9 +271,9 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # all pending
+  # all pending -> Same as all waiting
   robot.hear /^\s*all pending$/i, (res) ->
-    getTransactions(null, null, true, false, (rows) ->
+    getTransactions(null, null, true, true, (rows) ->
       response = "All pending transactions:\n"
       for id, row of rows
         console.log(id, row)
@@ -304,9 +307,9 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # all waiting
+  # all waiting -> Same as all pending
   robot.hear /^\s*all waiting$/i, (res) ->
-    getTransactions(null, null, false, true, (rows) ->
+    getTransactions(null, null, true, true, (rows) ->
       response = "All waiting transactions:\n"
       for id, row of rows
         console.log(id, row)
