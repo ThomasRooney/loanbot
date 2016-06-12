@@ -202,7 +202,7 @@ module.exports = (robot) ->
     )
 
   # gave @person amount description
-  robot.hear /gave\s+([^\s:]+):?\s+(\d+)\s+(.+)/i, (res) ->
+  robot.hear /^(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)\s+(?:for\s)?(.+)/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -212,7 +212,7 @@ module.exports = (robot) ->
 
 
   # gave @person amount
-  robot.hear /gave\s+([^\s:]+):?\s+(\d+)$/i, (res) ->
+  robot.hear /^(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)$/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -222,7 +222,7 @@ module.exports = (robot) ->
 
 
   # person gave amount description
-  robot.hear /([^\s:]+):?\s+gave\s+(\d+)\s+(.+)/i, (res) ->
+  robot.hear /^([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)\s+(?:for\s)?(.+)/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -232,7 +232,7 @@ module.exports = (robot) ->
 
 
   # person gave amount
-  robot.hear /([^\s:]+):?\s+gave\s+(\d+)$/i, (res) ->
+  robot.hear /^([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)$/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -393,8 +393,10 @@ module.exports = (robot) ->
 
   # Validation
   validateUser = (res, name) ->
-    if (name[0] != "@")
+    if name[0] != "@"
       res.send("#{name} is invalid. Please use a Slack username starting with @.")
+    else if name == "loanbot"
+      res.send("Sorry, you can't borrow money from @loanbot")
     else if !robot.brain.userForName(name.substr(1))
       res.send("#{name} is not a valid user")
     else
@@ -402,6 +404,8 @@ module.exports = (robot) ->
 
   # Add a transaction
   addTransaction = (res, personA, personB, state, amount, description) ->
+    console.log("Transaction", personA, personB, state, amount, description)
+
     selfAt = "@" + res.message.user.name
     if (personA == selfAt and personB == selfAt)
       res.send('You cannot add a transaction with yourself')
