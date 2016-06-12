@@ -150,11 +150,6 @@ getTransactions = (person1, person2, pending, waiting, callback) ->
   )
 
 handleTransactionAdded = (res, transID, personA, personB, amount, description) ->
-  response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personB} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-  res.send(response)
-
   console.log(transID, personA, personB, amount, description, res.message.user.name)
 
   origin = "@" + res.message.user.name
@@ -172,12 +167,13 @@ handleTransactionAdded = (res, transID, personA, personB, amount, description) -
       "Confirm with:\n" +
       "    `confirm #{transID}`"
 
-  console.log(dm);
-
   room = target.substr(1) # Remove the @
   res.robot.messageRoom room, dm
 
-
+  response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{target} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+  res.robot.messageRoom "lending", response
 module.exports = (robot) ->
   # confirm #
   robot.hear /confirm\s+(\d+)/i, (res) ->
