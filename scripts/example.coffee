@@ -77,7 +77,7 @@ stateToDescription = (state, from, to) ->
   if state == STATE_DENIED
     return "(denied)"
 
-addTransaction = (from, to, pendingState, amount, description, callback) ->
+addTransactionToDB = (from, to, pendingState, amount, description, callback) ->
   db.run("INSERT INTO transactions values \
     (?, ?, ?, datetime('now'), ?, ?)",
     [from,
@@ -146,8 +146,40 @@ getTransactions = (person1, person2, pending, waiting, callback) ->
     callback(rows)
   )
 
-module.exports = (robot) ->
+handleTransactionAdded = (res, transID, personA, personB, amount, description) ->
+  response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{personB} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+  res.send(response)
 
+  console.log(transID, personA, personB, amount, description, res.message.user.name)
+
+  origin = "@" + res.message.user.name
+  if personA == origin
+    target = personB
+    dm = "#{personA} gave you #{amount}"
+  else
+    target = personA
+    dm = "You gave #{amount} to #{personB}"
+
+  if description
+    dm += " for #{description}"
+
+  dm += "\n" +
+      "Confirm with:\n" +
+      "    `confirm #{transID}`"
+
+  console.log(dm);
+
+  room = target.substr(1) # Remove the @
+  res.robot.messageRoom room, dm
+
+addTransaction = (res, personA, personB, state, amount, description) ->
+  addTransactionToDB(personA, personB, state, amount, description, (transID) ->
+      handleTransactionAdded(res, transID, personA, personB, amount, description)
+    )
+
+module.exports = (robot) ->
   # confirm #
   robot.hear /confirm\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
@@ -177,12 +209,8 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = res.match[3]
 
-    addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personB} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_TO, amount, description)
+
 
   # gave @person amount
   robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)$/i, (res) ->
@@ -191,12 +219,8 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = ""
 
-    addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personB} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_TO, amount, description)
+
 
   # person gave amount description
   robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)\s+(.+)/i, (res) ->
@@ -205,12 +229,8 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = res.match[3]
 
-    addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personA} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_FROM, amount, description)
+
 
   # person gave amount
   robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)$/i, (res) ->
@@ -219,12 +239,7 @@ module.exports = (robot) ->
     amount = Number(res.match[2])
     description = ""
 
-    addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personA} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_FROM, amount, description)
 
 
   # pending
