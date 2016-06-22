@@ -77,7 +77,7 @@ stateToDescription = (state, from, to) ->
   if state == STATE_DENIED
     return "(denied)"
 
-addTransaction = (from, to, pendingState, amount, description, callback) ->
+addTransactionToDB = (from, to, pendingState, amount, description, callback) ->
   db.run("INSERT INTO transactions values \
     (?, ?, ?, datetime('now'), ?, ?)",
     [from,
@@ -120,7 +120,7 @@ getTotals = (person1, person2, callback) ->
     callback(rows)
   )
 
-getTransactions = (person1, person2, pending, callback) ->
+getTransactions = (person1, person2, pending, waiting, callback) ->
   query = "SELECT RowId, * FROM transactions"
   wheres = []
 
@@ -128,8 +128,13 @@ getTransactions = (person1, person2, pending, callback) ->
     wheres.push("([from] = '#{person1}' OR [to] = '#{person1}')")
   if person2
     wheres.push("([from] = '#{person2}' OR [to] = '#{person2}')")
-  if pending
+
+  if pending and waiting
     wheres.push("(state = #{STATE_PENDING_TO} OR state = #{STATE_PENDING_FROM})")
+  else if pending
+    wheres.push("state = #{STATE_PENDING_FROM}")
+  else if waiting
+    wheres.push("state = #{STATE_PENDING_TO}")
 
   if (wheres.length > 0)
     query += " WHERE "
@@ -144,10 +149,44 @@ getTransactions = (person1, person2, pending, callback) ->
     callback(rows)
   )
 
+handleTransactionAdded = (res, transID, personA, personB, amount, description) ->
+  console.log(transID, personA, personB, amount, description, res.message.user.name)
+
+  origin = "@" + res.message.user.name
+  if personA == origin
+    target = personB
+    dm = "#{personA} gave you #{amount}"
+  else
+    target = personA
+    dm = "You gave #{amount} to #{personB}"
+
+  if description
+    dm += " for #{description}"
+
+  dm += "\n" +
+      "Confirm with:\n" +
+      "    `confirm #{transID}`"
+
+  room = target.substr(1) # Remove the @
+  res.robot.messageRoom room, dm
+
+  response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
+          "  #{target} can confirm with:\n" +
+          "    `@loanbot: confirm #{transID}`"
+  res.robot.messageRoom "lending", response
+
+  if res.envelope.room != "lending"
+    res.send(response)
+
+
 module.exports = (robot) ->
+  addFn = (regex, fn) ->
+    robot.respond regex, fn
+    anchored = new RegExp("^" + regex.source)
+    robot.hear anchored, fn
 
   # confirm #
-  robot.hear /confirm\s+(\d+)/i, (res) ->
+  addFn /confirm\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
     setState(STATE_CONFIRMED, person, id, (success, from, to, amount) ->
@@ -158,7 +197,7 @@ module.exports = (robot) ->
     )
 
   # deny #
-  robot.hear /deny\s+(\d+)/i, (res) ->
+  addFn /deny\s+(\d+)/i, (res) ->
     person = "@" + res.message.user.name
     id = Number(res.match[1])
     setState(STATE_DENIED, person, id, (success, from, to, amount) ->
@@ -169,66 +208,49 @@ module.exports = (robot) ->
     )
 
   # gave @person amount description
-  robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)\s+(.+)/i, (res) ->
+  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)\s+(?:for\s)?(.+)/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = res.match[3]
 
-    addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personB} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_TO, amount, description)
+
 
   # gave @person amount
-  robot.hear /gave\s+(@[^\s:]+):?\s+(\d+)$/i, (res) ->
+  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)$/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = ""
 
-    addTransaction(personA, personB, STATE_PENDING_TO, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personB} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_TO, amount, description)
+
 
   # person gave amount description
-  robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)\s+(.+)/i, (res) ->
+  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)\s+(?:for\s)?(.+)/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = res.match[3]
 
-    addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personA} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_FROM, amount, description)
+
 
   # person gave amount
-  robot.hear /(@[^\s:]+):?\s+gave\s+(\d+)$/i, (res) ->
+  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)$/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
     description = ""
 
-    addTransaction(personA, personB, STATE_PENDING_FROM, amount, description,
-      (transID) ->
-        response = "Transaction #{transID} added: #{personA} gave #{amount} to #{personB}.\n" +
-          "  #{personA} can confirm with:\n" +
-          "    `@loanbot: confirm #{transID}`"
-        res.send(response))
+    addTransaction(res, personA, personB, STATE_PENDING_FROM, amount, description)
 
 
   # pending
-  robot.hear /^\s*pending$/i, (res) ->
+  addFn /\s*pending$/i, (res) ->
     personA = "@" + res.message.user.name
-    getTransactions(personA, null, true, (rows) ->
+    getTransactions(personA, null, true, false, (rows) ->
       response = "Pending transactions:\n"
       for id, row of rows
         console.log(id, row)
@@ -238,11 +260,11 @@ module.exports = (robot) ->
     )
 
   # pending @person
-  robot.hear /^\s*pending\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*pending\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     console.log(personA, personB);
-    getTransactions(personA, personB, true, (rows) ->
+    getTransactions(personA, personB, true, false, (rows) ->
       response = "Pending transactions with #{personA}:\n"
       for id, row of rows
         console.log(id, row)
@@ -251,10 +273,46 @@ module.exports = (robot) ->
       res.send(response)
     )
 
-  # all pending
-  robot.hear /^\s*all pending$/i, (res) ->
-    getTransactions(null, null, true, (rows) ->
+  # all pending -> Same as all waiting
+  addFn /\s*all pending$/i, (res) ->
+    getTransactions(null, null, true, true, (rows) ->
       response = "All pending transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
+
+      res.send(response)
+    )
+
+  # waiting
+  addFn /\s*waiting$/i, (res) ->
+    personA = "@" + res.message.user.name
+    getTransactions(personA, null, false, true, (rows) ->
+      response = "Waiting transactions:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
+
+      res.send(response)
+    )
+
+  # waiting @person
+  addFn /\s*waiting\s+(@[^\s:]+):?/i, (res) ->
+    personA = "@" + res.message.user.name
+    personB = res.match[1].toLowerCase()
+    getTransactions(personA, personB, false, true, (rows) ->
+      response = "Waiting transactions with #{personA}:\n"
+      for id, row of rows
+        console.log(id, row)
+        response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
+
+      res.send(response)
+    )
+
+  # all waiting -> Same as all pending
+  addFn /\s*all waiting$/i, (res) ->
+    getTransactions(null, null, true, true, (rows) ->
+      response = "All waiting transactions:\n"
       for id, row of rows
         console.log(id, row)
         response += "#{row.rowid} #{row.timestamp} #{row.from} gave #{row.amount} to #{row.to}: #{row.description} #{stateToDescription(row.state,row.from,row.to)}\n"
@@ -264,9 +322,9 @@ module.exports = (robot) ->
 
 
   # transactions
-  robot.hear /^\s*transactions$/i, (res) ->
+  addFn /\s*transactions$/i, (res) ->
     personA = "@" + res.message.user.name
-    getTransactions(personA, null, null, (rows) ->
+    getTransactions(personA, null, null, false, (rows) ->
       response = "Transactions:\n"
       for id, row of rows
         console.log(id, row)
@@ -276,11 +334,11 @@ module.exports = (robot) ->
     )
 
   # transactions @person
-  robot.hear /^\s*transactions\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*transactions\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     console.log(personA, personB);
-    getTransactions(personA, personB, null, (rows) ->
+    getTransactions(personA, personB, null, false, (rows) ->
       response = "Transactions with #{personA}:\n"
       for id, row of rows
         console.log(id, row)
@@ -290,8 +348,8 @@ module.exports = (robot) ->
     )
 
   # all transactions
-  robot.hear /^\s*all transactions$/i, (res) ->
-    getTransactions(null, null, null, (rows) ->
+  addFn /\s*all transactions$/i, (res) ->
+    getTransactions(null, null, null, false, (rows) ->
       response = "All transactions:\n"
       for id, row of rows
         console.log(id, row)
@@ -302,7 +360,7 @@ module.exports = (robot) ->
 
 
   # totals
-  robot.hear /^\s*totals$/i, (res) ->
+  addFn /\s*totals$/i, (res) ->
     personA = "@" + res.message.user.name
 
     getTotals(personA, null, (rows) ->
@@ -315,7 +373,7 @@ module.exports = (robot) ->
     )
 
   # totals person
-  robot.hear /^\s*totals\s+(@[^\s:]+):?/i, (res) ->
+  addFn /\s*totals\s+(@[^\s:]+):?/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
 
@@ -329,7 +387,7 @@ module.exports = (robot) ->
     )
 
   # all totals
-  robot.hear /^\s*all totals$/i, (res) ->
+  addFn /\s*all totals$/i, (res) ->
     getTotals(null, null, (rows) ->
       totals = {}
       for id, row of rows
@@ -338,6 +396,29 @@ module.exports = (robot) ->
 
       minimize(totals, res)
     )
+
+  # Validation
+  validateUser = (res, name) ->
+    if name[0] != "@"
+      res.send("#{name} is invalid. Please use a Slack username starting with @.")
+    else if name == "loanbot"
+      res.send("Sorry, you can't borrow money from @loanbot")
+    else if !robot.brain.userForName(name.substr(1))
+      res.send("#{name} is not a valid user")
+    else
+      return true
+
+  # Add a transaction
+  addTransaction = (res, personA, personB, state, amount, description) ->
+    console.log("Transaction", personA, personB, state, amount, description)
+
+    selfAt = "@" + res.message.user.name
+    if (personA == selfAt and personB == selfAt)
+      res.send('You cannot add a transaction with yourself')
+    else if (validateUser(res, personA) and validateUser(res, personB))
+      addTransactionToDB(personA, personB, state, amount, description, (transID) ->
+          handleTransactionAdded(res, transID, personA, personB, amount, description)
+        )
 
   # Minifying code
   findMin = (totals) ->
@@ -395,6 +476,29 @@ module.exports = (robot) ->
 
     res.send(response)
 
+  printHelp = (res) ->
+    res.send("Loanbot commands:\n" +
+             "*gave*: Add a transaction. Examples: \n" +
+             "           `gave @user 20 description`\n" +
+             "           `@user gave 20 description`\n\n" +
+             "*pending*: List transactions waiting for you to confirm\n" +
+             "*pending @user*: List your transactions with @user waiting for you to confirm\n" +
+             "*all pending*: List all transactions waiting to be confirmed\n\n" +
+             "*waiting*: List your transactions waiting for someone else to confirm\n" +
+             "*waiting @user*: List your transactions waiting for @user to confirm\n" +
+             "*all waiting*: List all transactions waiting to be confirmed\n\n" +
+             "*transactions*: List all your transactions\n" +
+             "*transactions @user*: List your transactions with @user\n" +
+             "*all transactions*: List all transactions\n\n" +
+             "*totals*: List total amounts owed by or to you\n" +
+             "*totals @user*: List total amount owed between you and @user\n" +
+             "*all totals*: List total amounts between everyone\n\n" +
+             ""
+    )
+
+  # all totals
+  addFn /help$/i, (res) ->
+    printHelp(res)
 
   #
   # robot.respond /resolve\s+(@[^\s:]+)/i (res) ->
