@@ -208,7 +208,7 @@ module.exports = (robot) ->
     )
 
   # gave @person amount description
-  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)\s+(?:for\s)?(.+)/i, (res) ->
+  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+(?:\.\d{1,2})?)\s+(?:for\s)?(.+)/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -218,7 +218,7 @@ module.exports = (robot) ->
 
 
   # gave @person amount
-  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+)$/i, (res) ->
+  addFn /(?:I\s)?gave\s+([^\s:]+):?\s+(\d+(?:\.\d{1,2})?)$/i, (res) ->
     personA = "@" + res.message.user.name
     personB = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -228,7 +228,7 @@ module.exports = (robot) ->
 
 
   # person gave amount description
-  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)\s+(?:for\s)?(.+)/i, (res) ->
+  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+(?:\.\d{1,2})?)\s+(?:for\s)?(.+)/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
@@ -238,7 +238,7 @@ module.exports = (robot) ->
 
 
   # person gave amount
-  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+)$/i, (res) ->
+  addFn /([^\s:]+):?\s+gave\s+(?:me\s)?(\d+(?:\.\d{1,2})?)$/i, (res) ->
     personB = "@" + res.message.user.name
     personA = res.match[1].toLowerCase()
     amount = Number(res.match[2])
